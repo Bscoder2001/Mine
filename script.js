@@ -1,20 +1,57 @@
-function createStars()
-{
+const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
+const isLowEndDevice = navigator.hardwareConcurrency <= 2 || navigator.deviceMemory <= 2;
+
+const PERFORMANCE_CONFIG = {
+    starCount: isMobile ? (isLowEndDevice ? 30 : 60) : 150,
+    floatingInterval: isMobile ? 4000 : 2000,
+    animationReducedMotion: window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+    useRAF: true,
+    maxFloatingElements: isMobile ? 3 : 8
+};
+
+function throttle(func, limit) {
+    let inThrottle;
+    return function() {
+        const args = arguments;
+        const context = this;
+        if (!inThrottle) {
+            func.apply(context, args);
+            inThrottle = true;
+            setTimeout(() => inThrottle = false, limit);
+        }
+    };
+}
+
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+function createStars() {
     const cosmos = document.getElementById('cosmos');
-    for (let i = 0; i < 150; i++)
-    {
+    const fragment = document.createDocumentFragment();
+    
+    for (let i = 0; i < PERFORMANCE_CONFIG.starCount; i++) {
         const star = document.createElement('div');
         star.className = 'star';
         star.style.left = Math.random() * 100 + '%';
         star.style.top = Math.random() * 100 + '%';
         star.style.animationDelay = Math.random() * 3 + 's';
         star.style.animationDuration = (Math.random() * 2 + 2) + 's';
-        cosmos.appendChild(star);
+        fragment.appendChild(star);
     }
+    
+    cosmos.appendChild(fragment);
 }
 
-function createConstellation()
-{
+function createConstellation() {
     const cosmos = document.getElementById('cosmos');
     const memories = [
         {
@@ -56,8 +93,9 @@ function createConstellation()
         {x: 25, y: 45}, {x: 45, y: 55}, {x: 65, y: 45}, {x: 80, y: 60}
     ];
 
-    positions.forEach((pos, index) =>
-    {
+    const fragment = document.createDocumentFragment();
+
+    positions.forEach((pos, index) => {
         const star = document.createElement('div');
         star.className = 'constellation-star';
         star.style.left = pos.x + '%';
@@ -67,10 +105,9 @@ function createConstellation()
         star.style.pointerEvents = 'auto';
         star.onclick = () => showMemory(memories[index]);
         star.style.animationDelay = (index * 0.5) + 's';
-        cosmos.appendChild(star);
+        fragment.appendChild(star);
 
-        if (index > 0)
-        {
+        if (index > 0) {
             const prevPos = positions[index - 1];
             const line = document.createElement('div');
             line.className = 'constellation-line';
@@ -85,14 +122,14 @@ function createConstellation()
             line.style.top = prevPos.y + '%';
             line.style.transform = `rotate(${angle}deg)`;
             line.style.transformOrigin = '0 50%';
-
-            cosmos.appendChild(line);
+            fragment.appendChild(line);
         }
     });
+
+    cosmos.appendChild(fragment);
 }
 
-function showMemory(memory)
-{
+function showMemory(memory) {
     const popup = document.getElementById('memoryPopup');
     const content = document.getElementById('memoryContent');
     content.innerHTML = `
@@ -105,13 +142,11 @@ function showMemory(memory)
     popup.classList.add('active');
 }
 
-function closeMemory()
-{
+function closeMemory() {
     document.getElementById('memoryPopup').classList.remove('active');
 }
 
-function showSection(sectionName)
-{
+function showSection(sectionName) {
     document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
 
@@ -119,12 +154,22 @@ function showSection(sectionName)
     event.target.classList.add('active');
 }
 
-function createFloatingElements()
-{
-    const container = document.getElementById('floatingHearts');
+let floatingElements = [];
+let maxFloatingElements = PERFORMANCE_CONFIG.maxFloatingElements;
 
-    setInterval(() =>
-    {
+function createFloatingElements() {
+    const container = document.getElementById('floatingHearts');
+    
+    floatingElements = floatingElements.filter(element => {
+        if (!element.parentNode) {
+            return false;
+        }
+        return true;
+    });
+
+    const floatingInterval = setInterval(() => {
+        if (floatingElements.length >= maxFloatingElements) return;
+
         const elements = ['💖', '✨', '💫', '🎵', '🌟', '💝', '🎶', '💕'];
         const element = document.createElement('div');
         element.className = Math.random() > 0.6 ? 'heart' : 'music-note';
@@ -134,81 +179,73 @@ function createFloatingElements()
         element.style.animationDelay = Math.random() * 2 + 's';
 
         container.appendChild(element);
+        floatingElements.push(element);
 
-        setTimeout(() =>
-        {
-            if (element.parentNode)
-            {
+        setTimeout(() => {
+            if (element.parentNode) {
                 element.parentNode.removeChild(element);
+                floatingElements = floatingElements.filter(el => el !== element);
             }
         }, 8000);
-    }, 2000);
+    }, PERFORMANCE_CONFIG.floatingInterval);
+
+    window.floatingInterval = floatingInterval;
 }
 
-document.addEventListener('mousemove', (e) =>
-{
+const handleMouseMove = throttle((e) => {
+    if (isMobile) return;
+    
     const stars = document.querySelectorAll('.constellation-star');
-    stars.forEach(star =>
-    {
+    stars.forEach(star => {
         const rect = star.getBoundingClientRect();
         const distance = Math.sqrt(
             Math.pow(e.clientX - (rect.left + rect.width / 2), 2) +
             Math.pow(e.clientY - (rect.top + rect.height / 2), 2)
         );
 
-        if (distance < 100)
-        {
+        if (distance < 100) {
             star.style.transform = 'scale(1.3)';
             star.style.boxShadow = '0 0 40px rgba(255, 215, 0, 1)';
-        }
-        else
-        {
+        } else {
             star.style.transform = 'scale(1)';
             star.style.boxShadow = '0 0 20px rgba(255, 215, 0, 0.5)';
         }
     });
-});
+}, 50);
 
-document.addEventListener('click', (e) =>
-{
+document.addEventListener('mousemove', handleMouseMove, { passive: true });
+
+document.addEventListener('click', (e) => {
     const popup = document.getElementById('memoryPopup');
-    if (e.target === popup)
-    {
+    if (e.target === popup) {
         closeMemory();
     }
 });
 
-window.addEventListener('load', () =>
-{
+window.addEventListener('load', () => {
     createStars();
     createConstellation();
     createFloatingElements();
 });
 
-document.addEventListener('DOMContentLoaded', () =>
-{
+document.addEventListener('DOMContentLoaded', () => {
     const flowers = document.querySelectorAll('.flower');
-    flowers.forEach((flower, index) =>
-    {
-        flower.addEventListener('mouseenter', () =>
-        {
+    flowers.forEach((flower, index) => {
+        flower.addEventListener('mouseenter', () => {
             flower.style.background = 'rgba(255, 215, 0, 0.2)';
-        });
-        flower.addEventListener('mouseleave', () =>
-        {
+        }, { passive: true });
+        
+        flower.addEventListener('mouseleave', () => {
             flower.style.background = 'rgba(255, 215, 0, 0.1)';
-        });
+        }, { passive: true });
     });
 });
 
-function typeWriter(element, text, speed = 50)
-{
+function typeWriter(element, text, speed = 50) {
     let i = 0;
     element.innerHTML = '';
-    function type()
-    {
-        if (i < text.length)
-        {
+    function type() {
+        if (i < text.length) {
             element.innerHTML += text.charAt(i);
             i++;
             setTimeout(type, speed);
@@ -218,31 +255,32 @@ function typeWriter(element, text, speed = 50)
 }
 
 let clickCount = 0;
-document.addEventListener('click', () =>
-{
+const clickThreshold = isMobile ? 25 : 50;
+
+document.addEventListener('click', () => {
     clickCount++;
-    if (clickCount === 50)
-    {
+    if (clickCount === clickThreshold) {
         showSpecialSurprise();
     }
-});
+}, { passive: true });
 
-function showSpecialSurprise()
-{
+function showSpecialSurprise() {
     const surprise = document.createElement('div');
-    surprise.style.position = 'fixed';
-    surprise.style.top = '50%';
-    surprise.style.left = '50%';
-    surprise.style.transform = 'translate(-50%, -50%)';
-    surprise.style.background = 'rgba(0, 0, 0, 0.95)';
-    surprise.style.border = '2px solid #ffd700';
-    surprise.style.borderRadius = '20px';
-    surprise.style.padding = '40px';
-    surprise.style.textAlign = 'center';
-    surprise.style.color = '#ffd700';
-    surprise.style.zIndex = '1000';
-    surprise.style.maxWidth = '80%';
-    surprise.style.animation = 'fadeIn 1s ease-in-out';
+    surprise.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(0, 0, 0, 0.95);
+        border: 2px solid #ffd700;
+        border-radius: 20px;
+        padding: 40px;
+        text-align: center;
+        color: #ffd700;
+        z-index: 1000;
+        max-width: 80%;
+        animation: fadeIn 1s ease-in-out;
+    `;
 
     surprise.innerHTML = `
         <h2 style="margin-bottom: 20px; font-size: 2rem;">🎉 Special Surprise! 🎉</h2>
@@ -265,60 +303,72 @@ function showSpecialSurprise()
     document.body.appendChild(surprise);
 }
 
-window.addEventListener('scroll', () =>
-{
+const handleScroll = throttle(() => {
+    if (isMobile) return;
+    
     const scrolled = window.pageYOffset;
     const parallax = document.querySelectorAll('.aurora-wave');
     const speed = 0.5;
 
-    parallax.forEach((element, index) =>
-    {
+    parallax.forEach((element, index) => {
         const yPos = -(scrolled * speed * (index + 1) * 0.1);
         element.style.transform = `translateY(${yPos}px)`;
     });
-});
+}, 100);
 
-setInterval(() =>
-{
+window.addEventListener('scroll', handleScroll, { passive: true });
+
+const buttonGlowInterval = isMobile ? 5000 : 3000;
+setInterval(() => {
     const activeBtn = document.querySelector('.nav-btn.active');
-    if (activeBtn)
-    {
+    if (activeBtn) {
         activeBtn.style.boxShadow = '0 0 30px rgba(255, 215, 0, 0.6)';
-        setTimeout(() =>
-        {
+        setTimeout(() => {
             activeBtn.style.boxShadow = '0 0 20px rgba(255, 215, 0, 0.3)';
         }, 1000);
     }
-}, 3000);
+}, buttonGlowInterval);
 
 let sparkles = [];
-document.addEventListener('mousemove', (e) =>
-{
-    if (Math.random() > 0.9)
-    {
+const handleMouseMoveSparkles = throttle((e) => {
+    const sparkleChance = isMobile ? 0.95 : 0.9;
+    
+    if (Math.random() > sparkleChance) {
+        // Clean up old sparkles
+        if (sparkles.length > 10) {
+            const oldSparkle = sparkles.shift();
+            if (oldSparkle.parentNode) {
+                oldSparkle.parentNode.removeChild(oldSparkle);
+            }
+        }
+
         const sparkle = document.createElement('div');
-        sparkle.style.position = 'fixed';
-        sparkle.style.left = e.clientX + 'px';
-        sparkle.style.top = e.clientY + 'px';
-        sparkle.style.width = '4px';
-        sparkle.style.height = '4px';
-        sparkle.style.background = '#ffd700';
-        sparkle.style.borderRadius = '50%';
-        sparkle.style.pointerEvents = 'none';
-        sparkle.style.zIndex = '9999';
-        sparkle.style.animation = 'sparkleTrail 1s ease-out forwards';
+        sparkle.style.cssText = `
+            position: fixed;
+            left: ${e.clientX}px;
+            top: ${e.clientY}px;
+            width: 4px;
+            height: 4px;
+            background: #ffd700;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 9999;
+            animation: sparkleTrail 1s ease-out forwards;
+        `;
 
         document.body.appendChild(sparkle);
+        sparkles.push(sparkle);
 
-        setTimeout(() =>
-        {
-            if (sparkle.parentNode)
-            {
+        setTimeout(() => {
+            if (sparkle.parentNode) {
                 sparkle.parentNode.removeChild(sparkle);
+                sparkles = sparkles.filter(s => s !== sparkle);
             }
         }, 1000);
     }
-});
+}, 100);
+
+document.addEventListener('mousemove', handleMouseMoveSparkles, { passive: true });
 
 const sparkleStyle = document.createElement('style');
 sparkleStyle.textContent = `
@@ -335,25 +385,24 @@ sparkleStyle.textContent = `
 `;
 document.head.appendChild(sparkleStyle);
 
-function createShootingStar()
-{
+function createShootingStar() {
     const star = document.createElement('div');
-    star.style.position = 'fixed';
-    star.style.width = '2px';
-    star.style.height = '2px';
-    star.style.background = 'linear-gradient(45deg, #ffd700, transparent)';
-    star.style.borderRadius = '50%';
-    star.style.top = Math.random() * 50 + '%';
-    star.style.left = '-10px';
-    star.style.zIndex = '1';
-    star.style.animation = 'shootingStar 3s linear forwards';
+    star.style.cssText = `
+        position: fixed;
+        width: 2px;
+        height: 2px;
+        background: linear-gradient(45deg, #ffd700, transparent);
+        border-radius: 50%;
+        top: ${Math.random() * 50}%;
+        left: -10px;
+        z-index: 1;
+        animation: shootingStar 3s linear forwards;
+    `;
 
     document.body.appendChild(star);
 
-    setTimeout(() =>
-    {
-        if (star.parentNode)
-        {
+    setTimeout(() => {
+        if (star.parentNode) {
             star.parentNode.removeChild(star);
         }
     }, 3000);
@@ -376,50 +425,46 @@ shootingStarStyle.textContent = `
 `;
 document.head.appendChild(shootingStarStyle);
 
-setInterval(createShootingStar, Math.random() * 5000 + 10000);
+const shootingStarInterval = isMobile ? 20000 : 10000;
+setInterval(createShootingStar, Math.random() * shootingStarInterval + shootingStarInterval);
 
-setInterval(() =>
-{
+const titlePulseInterval = isMobile ? 6000 : 4000;
+setInterval(() => {
     const title = document.querySelector('.title');
-    if (title)
-    {
+    if (title) {
         title.style.transform = 'scale(1.02)';
-        setTimeout(() =>
-        {
+        setTimeout(() => {
             title.style.transform = 'scale(1)';
         }, 2000);
     }
-}, 4000);
+}, titlePulseInterval);
 
-if (window.innerWidth <= 768)
-{
-    setTimeout(() =>
-    {
+if (isMobile) {
+    setTimeout(() => {
         const mobileMsg = document.createElement('div');
-        mobileMsg.style.position = 'fixed';
-        mobileMsg.style.bottom = '20px';
-        mobileMsg.style.left = '50%';
-        mobileMsg.style.transform = 'translateX(-50%)';
-        mobileMsg.style.background = 'rgba(255, 215, 0, 0.1)';
-        mobileMsg.style.border = '1px solid rgba(255, 215, 0, 0.3)';
-        mobileMsg.style.borderRadius = '15px';
-        mobileMsg.style.padding = '15px 20px';
-        mobileMsg.style.color = '#ffd700';
-        mobileMsg.style.fontSize = '14px';
-        mobileMsg.style.textAlign = 'center';
-        mobileMsg.style.zIndex = '1000';
-        mobileMsg.style.animation = 'fadeIn 1s ease-in-out';
+        mobileMsg.style.cssText = `
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 215, 0, 0.1);
+            border: 1px solid rgba(255, 215, 0, 0.3);
+            border-radius: 15px;
+            padding: 15px 20px;
+            color: #ffd700;
+            font-size: 14px;
+            text-align: center;
+            z-index: 1000;
+            animation: fadeIn 1s ease-in-out;
+        `;
         mobileMsg.innerHTML = '📱 Perfect for you, Piu! Enjoy on any device 💖';
 
         document.body.appendChild(mobileMsg);
 
-        setTimeout(() =>
-        {
+        setTimeout(() => {
             mobileMsg.style.animation = 'fadeOut 1s ease-in-out forwards';
-            setTimeout(() =>
-            {
-                if (mobileMsg.parentNode)
-                {
+            setTimeout(() => {
+                if (mobileMsg.parentNode) {
                     mobileMsg.parentNode.removeChild(mobileMsg);
                 }
             }, 1000);
@@ -435,3 +480,29 @@ fadeOutStyle.textContent = `
     }
 `;
 document.head.appendChild(fadeOutStyle);
+
+window.addEventListener('beforeunload', () => {
+    if (window.floatingInterval) {
+        clearInterval(window.floatingInterval);
+    }
+
+    floatingElements.forEach(element => {
+        if (element.parentNode) {
+            element.parentNode.removeChild(element);
+        }
+    });
+    
+    sparkles.forEach(sparkle => {
+        if (sparkle.parentNode) {
+            sparkle.parentNode.removeChild(sparkle);
+        }
+    });
+});
+
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+        document.body.style.animationPlayState = 'paused';
+    } else {
+        document.body.style.animationPlayState = 'running';
+    }
+});
